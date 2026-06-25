@@ -10,15 +10,35 @@ import time
 import glob
 
 PORT = 8080
-WORKSPACE_DIR = "/Users/reneopserabase/Documents/emu_stuff"
+
+# Dynamic directories setup
+HOME_DIR = os.path.expanduser("~")
+WORKSPACE_DIR = os.path.join(HOME_DIR, "AuraConsole")
 DOWNLOAD_DIR = os.path.join(WORKSPACE_DIR, "Downloads")
 CACHE_DIR = os.path.join(WORKSPACE_DIR, "cache")
-STATIC_DIR = os.path.join(WORKSPACE_DIR, "downloader")
 COMPAT_DB_PATH = os.path.join(WORKSPACE_DIR, "compat_db.json")
+
+# Determine bundle resource paths (for bundled HTML/JS/CSS assets and default db)
+if getattr(sys, 'frozen', False):
+    # Running as compiled binary inside resources/bin/
+    script_dir = os.path.dirname(sys.executable)
+    if os.path.basename(script_dir) == 'bin':
+        STATIC_DIR = os.path.abspath(os.path.join(script_dir, "..", "downloader"))
+        DEFAULT_COMPAT_DB = os.path.abspath(os.path.join(script_dir, "..", "compat_db.json"))
+    else:
+        STATIC_DIR = os.path.abspath(os.path.join(script_dir, "downloader"))
+        DEFAULT_COMPAT_DB = os.path.abspath(os.path.join(script_dir, "compat_db.json"))
+else:
+    # Running in development
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    STATIC_DIR = os.path.abspath(os.path.join(script_dir, "downloader"))
+    DEFAULT_COMPAT_DB = os.path.abspath(os.path.join(script_dir, "compat_db.json"))
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
-os.makedirs(STATIC_DIR, exist_ok=True)
+# Only create STATIC_DIR in dev mode (in packaged mode it's read-only and already exists)
+if not getattr(sys, 'frozen', False):
+    os.makedirs(STATIC_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Compatibility Patch Database helpers
@@ -30,6 +50,16 @@ def _load_compat_db():
         try:
             with open(COMPAT_DB_PATH, "r", encoding="utf-8") as f:
                 return json.load(f)
+        except Exception:
+            pass
+    # Try copying from default bundled copy
+    if os.path.exists(DEFAULT_COMPAT_DB):
+        try:
+            with open(DEFAULT_COMPAT_DB, "r", encoding="utf-8") as f:
+                db = json.load(f)
+            with open(COMPAT_DB_PATH, "w", encoding="utf-8") as f:
+                json.dump(db, f, indent=2, ensure_ascii=False)
+            return db
         except Exception:
             pass
     return {"version": "1.0.0", "games": {}, "known_flags": {}}

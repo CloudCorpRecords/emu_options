@@ -26,12 +26,21 @@ function getPythonPath() {
 }
 
 function startPythonServer() {
-  const pythonPath = getPythonPath();
-  const scriptPath = path.join(__dirname, 'rom_downloader_server.py');
+  let executablePath;
+  let args = [];
 
-  console.log(`Starting python server: ${pythonPath} ${scriptPath}`);
-  
-  pythonProcess = spawn(pythonPath, [scriptPath], {
+  if (app.isPackaged) {
+    const binaryName = process.platform === 'win32' ? 'rom_downloader_server.exe' : 'rom_downloader_server';
+    executablePath = path.join(process.resourcesPath, 'bin', binaryName);
+    console.log(`Starting packaged server binary: ${executablePath}`);
+  } else {
+    const pythonPath = getPythonPath();
+    executablePath = pythonPath;
+    args = [path.join(__dirname, 'rom_downloader_server.py')];
+    console.log(`Starting python server: ${pythonPath} ${args[0]}`);
+  }
+
+  pythonProcess = spawn(executablePath, args, {
     cwd: __dirname,
     stdio: 'pipe',
     env: { ...process.env, PYTHONUNBUFFERED: '1' }
@@ -51,10 +60,10 @@ function startPythonServer() {
   });
 
   pythonProcess.on('error', (err) => {
-    console.error('Failed to start python process:', err);
+    console.error('Failed to start server process:', err);
     dialog.showErrorBox(
-      'Python Error',
-      `Failed to start backend server.\n\nError: ${err.message}\n\nPlease ensure Python 3 is installed and available in your system path.`
+      'Server Error',
+      `Failed to start backend server.\n\nError: ${err.message}`
     );
   });
 }

@@ -22,3 +22,11 @@ scratch/
 # Node dependencies
 node_modules/
 
+# Python virtual environment
+venv/
+
+# PyInstaller build outputs and standalone binaries
+build/
+dist/
+*.spec
+bin/
