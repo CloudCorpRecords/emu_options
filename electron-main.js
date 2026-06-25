@@ -93,6 +93,12 @@ function createWindow() {
     height: 800,
     title: 'Aura Console',
     backgroundColor: '#0c0c14',
+    titleBarStyle: 'hiddenInset',
+    titleBarOverlay: process.platform === 'win32' ? {
+      color: '#0f0f18',
+      symbolColor: '#ffffff',
+      height: 40
+    } : false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true

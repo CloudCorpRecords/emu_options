@@ -783,6 +783,147 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": True}).encode())
             return
 
+        elif path == "/api/install-melonds":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            
+            def install_worker():
+                downloads_status["melonds-install"] = {"status": "downloading", "bytes_written": 0, "total_size": 0}
+                url = "https://github.com/melonDS-emu/melonDS/releases/download/0.9.5/melonDS-0.9.5-macOS-universal.zip"
+                zip_path = os.path.join(WORKSPACE_DIR, "melonds_temp.zip")
+                
+                try:
+                    # 1. Download ZIP
+                    print(f"Downloading melonDS ZIP from {url}...")
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response:
+                        total_size = int(response.headers.get('content-length', 0))
+                        downloads_status["melonds-install"]["total_size"] = total_size
+                        
+                        bytes_written = 0
+                        block_size = 131072
+                        with open(zip_path, "wb") as f:
+                            while True:
+                                buffer = response.read(block_size)
+                                if not buffer:
+                                    break
+                                f.write(buffer)
+                                bytes_written += len(buffer)
+                                downloads_status["melonds-install"]["bytes_written"] = bytes_written
+                                
+                    # 2. Extract ZIP directly into workspace
+                    downloads_status["melonds-install"]["status"] = "extracting"
+                    print("Extracting melonDS ZIP...")
+                    success = extract_archive(zip_path, WORKSPACE_DIR)
+                    if not success:
+                        raise Exception("Extraction failed.")
+                    
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+                        
+                    downloads_status["melonds-install"]["status"] = "completed"
+                    print("melonDS installation completed successfully!")
+                except Exception as e:
+                    print(f"melonDS installation failed: {e}")
+                    downloads_status["melonds-install"]["status"] = "error"
+                    downloads_status["melonds-install"]["error"] = str(e)
+                    if os.path.exists(zip_path):
+                        try: os.remove(zip_path)
+                        except Exception: pass
+            
+            t = threading.Thread(target=install_worker)
+            t.daemon = True
+            t.start()
+            
+            self.wfile.write(json.dumps({"success": True}).encode())
+            return
+
+        elif path == "/api/install-ppsspp":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            
+            def install_worker():
+                downloads_status["ppsspp-install"] = {"status": "downloading", "bytes_written": 0, "total_size": 0}
+                url = "https://www.ppsspp.org/files/1_20_4/PPSSPP_macOS.dmg"
+                dmg_path = os.path.join(WORKSPACE_DIR, "ppsspp_temp.dmg")
+                mount_dir = "/tmp/ppsspp_mount"
+                
+                try:
+                    # 1. Download DMG
+                    print(f"Downloading PPSSPP DMG from {url}...")
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response:
+                        total_size = int(response.headers.get('content-length', 0))
+                        downloads_status["ppsspp-install"]["total_size"] = total_size
+                        
+                        bytes_written = 0
+                        block_size = 131072
+                        with open(dmg_path, "wb") as f:
+                            while True:
+                                buffer = response.read(block_size)
+                                if not buffer:
+                                    break
+                                f.write(buffer)
+                                bytes_written += len(buffer)
+                                downloads_status["ppsspp-install"]["bytes_written"] = bytes_written
+                                
+                    # 2. Mount DMG
+                    downloads_status["ppsspp-install"]["status"] = "mounting"
+                    print("Mounting DMG...")
+                    os.makedirs(mount_dir, exist_ok=True)
+                    import subprocess
+                    subprocess.run(["hdiutil", "attach", "-nobrowse", "-mountpoint", mount_dir, dmg_path], check=True)
+                    
+                    # 3. Copy App
+                    downloads_status["ppsspp-install"]["status"] = "copying"
+                    apps = [f for f in os.listdir(mount_dir) if f.endswith(".app")]
+                    if not apps:
+                        raise Exception("No .app bundle found inside the DMG.")
+                    src_app = os.path.join(mount_dir, apps[0])
+                    dest_app = os.path.join(WORKSPACE_DIR, "PPSSPP.app")
+                    print(f"Copying {src_app} to {dest_app}...")
+                    if os.path.exists(dest_app):
+                        import shutil
+                        if os.path.isdir(dest_app):
+                            shutil.rmtree(dest_app)
+                        else:
+                            os.remove(dest_app)
+                            
+                    subprocess.run(["cp", "-R", src_app, dest_app], check=True)
+                    
+                    # 4. Unmount and clean up
+                    downloads_status["ppsspp-install"]["status"] = "unmounting"
+                    print("Detaching DMG...")
+                    subprocess.run(["hdiutil", "detach", mount_dir], check=True)
+                    
+                    if os.path.exists(dmg_path):
+                        os.remove(dmg_path)
+                    
+                    downloads_status["ppsspp-install"]["status"] = "completed"
+                    print("PPSSPP installation completed successfully!")
+                except Exception as e:
+                    print(f"PPSSPP installation failed: {e}")
+                    downloads_status["ppsspp-install"]["status"] = "error"
+                    downloads_status["ppsspp-install"]["error"] = str(e)
+                    # Clean up
+                    try:
+                        import subprocess
+                        subprocess.run(["hdiutil", "detach", mount_dir], stderr=subprocess.PIPE)
+                    except Exception:
+                        pass
+                    if os.path.exists(dmg_path):
+                        try: os.remove(dmg_path)
+                        except Exception: pass
+            
+            t = threading.Thread(target=install_worker)
+            t.daemon = True
+            t.start()
+            
+            self.wfile.write(json.dumps({"success": True}).encode())
+            return
+
         # Import downloaded ROM directly into OpenEmu
         elif path == "/api/import-game":
             self.send_response(200)

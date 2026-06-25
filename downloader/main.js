@@ -914,150 +914,164 @@ document.addEventListener("DOMContentLoaded", () => {
     xhr.send(file);
   }
 
-  // ── XeniOS Installer ────────────────────────────────────────────────────────
+  // ── Emulator Installers ───────────────────────────────────────────────────
   function checkEmulators() {
     fetch("/api/check-emulators")
       .then(res => res.json())
       .then(status => {
-        const container = document.getElementById("xenia-install-container");
-        if (!container) return;
-        
-        if (status.xbox360) {
-          container.innerHTML = "";
-        } else {
-          checkXeniaInstallStatus();
+        // NDS (melonDS)
+        const ndsContainer = document.getElementById("melonds-install-container");
+        if (ndsContainer) {
+          if (status.nds) ndsContainer.innerHTML = "";
+          else checkEmuInstallStatus("melonds", ndsContainer);
+        }
+
+        // PSP (PPSSPP)
+        const pspContainer = document.getElementById("ppsspp-install-container");
+        if (pspContainer) {
+          if (status.psp) pspContainer.innerHTML = "";
+          else checkEmuInstallStatus("ppsspp", pspContainer);
+        }
+
+        // Xbox 360 (XeniOS/Xenia)
+        const xboxContainer = document.getElementById("xenia-install-container");
+        if (xboxContainer) {
+          if (status.xbox360) xboxContainer.innerHTML = "";
+          else checkEmuInstallStatus("xenia", xboxContainer);
         }
       })
       .catch(err => console.error("Error checking emulators:", err));
   }
 
-  function checkXeniaInstallStatus() {
-    fetch("/api/progress?id=xenia-install")
+  function checkEmuInstallStatus(emuKey, container) {
+    const installId = `${emuKey}-install`;
+    fetch(`/api/progress?id=${installId}`)
       .then(res => res.json())
       .then(data => {
-        const container = document.getElementById("xenia-install-container");
-        if (!container) return;
-        
         if (data.error) {
-          renderInstallButton(container);
+          renderEmuInstallButton(emuKey, container);
         } else if (data.status && data.status !== "completed") {
-          renderInstallingState(container);
-          pollXeniaInstallationProgress();
+          renderEmuInstallingState(emuKey, container);
+          pollEmuInstallationProgress(emuKey, container);
         } else if (data.status === "completed") {
           container.innerHTML = "";
         } else {
-          renderInstallButton(container);
+          renderEmuInstallButton(emuKey, container);
         }
       })
       .catch(() => {
-        const container = document.getElementById("xenia-install-container");
-        if (container) renderInstallButton(container);
+        renderEmuInstallButton(emuKey, container);
       });
   }
 
-  function renderInstallButton(container) {
+  function renderEmuInstallButton(emuKey, container) {
+    const emuName = emuKey === "xenia" ? "XeniOS" : emuKey === "melonds" ? "melonDS" : "PPSSPP";
     container.innerHTML = `
-      <button class="install-xenia-btn">
+      <button class="install-emu-btn">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        Download & Install XeniOS
+        Download & Install ${emuName}
       </button>
     `;
     
-    const btn = container.querySelector(".install-xenia-btn");
+    const btn = container.querySelector(".install-emu-btn");
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      startXeniaInstallation();
+      startEmuInstallation(emuKey, container);
     });
   }
 
-  function renderInstallingState(container) {
+  function renderEmuInstallingState(emuKey, container) {
+    const emuName = emuKey === "xenia" ? "XeniOS" : emuKey === "melonds" ? "melonDS" : "PPSSPP";
     container.innerHTML = `
-      <div class="install-xenia-progress">
-        <div class="install-xenia-progress-header">
-          <span>XeniOS Installer</span>
-          <span id="xenia-install-pct">0%</span>
+      <div class="install-emu-progress">
+        <div class="install-emu-progress-header">
+          <span>${emuName} Installer</span>
+          <span id="${emuKey}-install-pct">0%</span>
         </div>
-        <div class="install-xenia-progress-bar-bg">
-          <div class="install-xenia-progress-bar-fill" id="xenia-install-fill"></div>
+        <div class="install-emu-progress-bar-bg">
+          <div class="install-emu-progress-bar-fill" id="${emuKey}-install-fill"></div>
         </div>
-        <div class="install-xenia-progress-footer">
-          <span id="xenia-install-status">Downloading...</span>
-          <span id="xenia-install-bytes">0 / 0 MB</span>
+        <div class="install-emu-progress-footer">
+          <span id="${emuKey}-install-status">Downloading...</span>
+          <span id="${emuKey}-install-bytes">0 / 0 MB</span>
         </div>
       </div>
     `;
   }
 
-  function startXeniaInstallation() {
-    showToast("Starting XeniOS installation...", "info");
-    const container = document.getElementById("xenia-install-container");
-    if (container) {
-      renderInstallingState(container);
-    }
+  function startEmuInstallation(emuKey, container) {
+    const emuName = emuKey === "xenia" ? "XeniOS" : emuKey === "melonds" ? "melonDS" : "PPSSPP";
+    showToast(`Starting ${emuName} installation...`, "info");
+    renderEmuInstallingState(emuKey, container);
     
-    fetch("/api/install-xenia")
+    fetch(`/api/install-${emuKey}`)
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          pollXeniaInstallationProgress();
+          pollEmuInstallationProgress(emuKey, container);
         } else {
-          showToast("Failed to start installation: " + (data.error || "unknown"), "error");
-          checkXeniaInstallStatus();
+          showToast(`Failed to start installation: ${data.error || "unknown"}`, "error");
+          checkEmuInstallStatus(emuKey, container);
         }
       })
       .catch(err => {
-        console.error("Error starting XeniOS install:", err);
+        console.error(`Error starting ${emuName} install:`, err);
         showToast("Error initiating installation", "error");
-        checkXeniaInstallStatus();
+        checkEmuInstallStatus(emuKey, container);
       });
   }
 
-  function pollXeniaInstallationProgress() {
-    const container = document.getElementById("xenia-install-container");
-    if (!container) return;
-    
-    const fill = document.getElementById("xenia-install-fill");
+  function pollEmuInstallationProgress(emuKey, container) {
+    const fill = document.getElementById(`${emuKey}-install-fill`);
     if (!fill) {
-      renderInstallingState(container);
+      renderEmuInstallingState(emuKey, container);
     }
     
-    const id = "xenia-install";
+    const installId = `${emuKey}-install`;
+    const emuName = emuKey === "xenia" ? "XeniOS" : emuKey === "melonds" ? "melonDS" : "PPSSPP";
+    const archiveType = emuKey === "melonds" ? "ZIP" : "DMG";
+
     const intervalId = setInterval(() => {
-      fetch(`/api/progress?id=${id}`)
+      fetch(`/api/progress?id=${installId}`)
         .then(res => res.json())
         .then(data => {
           if (data.error) {
             clearInterval(intervalId);
             if (data.error === "Invalid download ID") {
-              checkXeniaInstallStatus();
+              checkEmuInstallStatus(emuKey, container);
             } else {
-              handleXeniaInstallError(data.error);
+              handleEmuInstallError(emuKey, container, data.error);
             }
             return;
           }
           
           const { status, bytes_written: written, total_size: total } = data;
           
-          const curFill = document.getElementById("xenia-install-fill");
-          const curPctText = document.getElementById("xenia-install-pct");
-          const curStatusText = document.getElementById("xenia-install-status");
-          const curBytesText = document.getElementById("xenia-install-bytes");
+          const curFill = document.getElementById(`${emuKey}-install-fill`);
+          const curPctText = document.getElementById(`${emuKey}-install-pct`);
+          const curStatusText = document.getElementById(`${emuKey}-install-status`);
+          const curBytesText = document.getElementById(`${emuKey}-install-bytes`);
           
           if (status === "downloading") {
             const pct = total > 0 ? Math.round((written / total) * 100) : 0;
             if (curFill) curFill.style.width = `${pct}%`;
             if (curPctText) curPctText.textContent = `${pct}%`;
-            if (curStatusText) curStatusText.textContent = "Downloading DMG...";
+            if (curStatusText) curStatusText.textContent = `Downloading ${archiveType}...`;
             if (curBytesText) curBytesText.textContent = `${formatBytes(written, 1)} / ${formatBytes(total, 1)}`;
           } else if (status === "mounting") {
             if (curFill) curFill.style.width = "100%";
             if (curPctText) curPctText.textContent = "90%";
             if (curStatusText) curStatusText.textContent = "Mounting DMG...";
             if (curBytesText) curBytesText.textContent = "hdiutil attach";
+          } else if (status === "extracting") {
+            if (curFill) curFill.style.width = "100%";
+            if (curPctText) curPctText.textContent = "95%";
+            if (curStatusText) curStatusText.textContent = "Extracting app...";
+            if (curBytesText) curBytesText.textContent = "Unzipping files";
           } else if (status === "copying") {
             if (curFill) curFill.style.width = "100%";
             if (curPctText) curPctText.textContent = "95%";
-            if (curStatusText) curStatusText.textContent = "Copying XeniOS.app...";
+            if (curStatusText) curStatusText.textContent = `Copying ${emuName}.app...`;
             if (curBytesText) curBytesText.textContent = "Writing to workspace";
           } else if (status === "unmounting") {
             if (curFill) curFill.style.width = "100%";
@@ -1066,39 +1080,39 @@ document.addEventListener("DOMContentLoaded", () => {
             if (curBytesText) curBytesText.textContent = "hdiutil detach";
           } else if (status === "completed") {
             clearInterval(intervalId);
-            showToast("XeniOS Emulator installed successfully!", "success");
+            showToast(`${emuName} installed successfully!`, "success");
             if (container) {
               container.innerHTML = "";
             }
             checkEmulators();
           } else if (status === "error") {
             clearInterval(intervalId);
-            handleXeniaInstallError(data.error || "Installation failed");
+            handleEmuInstallError(emuKey, container, data.error || "Installation failed");
           }
         })
         .catch(err => {
-          console.error("Xenia install progress polling failed:", err);
+          console.error(`${emuName} install progress polling failed:`, err);
         });
     }, 1000);
   }
   
-  function handleXeniaInstallError(errorMsg) {
-    showToast("XeniOS Installation failed: " + errorMsg, "error");
-    const container = document.getElementById("xenia-install-container");
+  function handleEmuInstallError(emuKey, container, errorMsg) {
+    const emuName = emuKey === "xenia" ? "XeniOS" : emuKey === "melonds" ? "melonDS" : "PPSSPP";
+    showToast(`${emuName} Installation failed: ${errorMsg}`, "error");
     if (container) {
       container.innerHTML = `
         <div style="color: var(--color-error); font-size: 11px; margin-top: 8px; text-align: center;">
           Installation failed: ${errorMsg}
-          <button class="install-xenia-btn" style="background: rgba(239, 68, 68, 0.1); border-color: var(--color-error); color: var(--color-error);">
+          <button class="install-emu-btn" style="background: rgba(239, 68, 68, 0.1); border-color: var(--color-error); color: var(--color-error);">
             Retry Installation
           </button>
         </div>
       `;
-      const retryBtn = container.querySelector(".install-xenia-btn");
+      const retryBtn = container.querySelector(".install-emu-btn");
       if (retryBtn) {
         retryBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          startXeniaInstallation();
+          startEmuInstallation(emuKey, container);
         });
       }
     }

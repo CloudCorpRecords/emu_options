@@ -33,6 +33,15 @@
       "target": "dmg",
       "category": "public.app-category.games",
       "identity": null
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }
