@@ -260,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     games.forEach(game => {
       const li = document.createElement("li");
-      const isDownloaded = downloadedRoms.includes(game.name);
+      const isDownloaded = downloadedRoms.includes(game.name) || downloadedRoms.includes(game.name.split("/").pop());
       li.className = `game-card${isDownloaded ? " downloaded" : ""}`;
       li.dataset.filename = game.name;
 
@@ -319,6 +319,10 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         libraryData = data;
+        
+        // Sync downloadedRoms with the actual list of files retrieved from the server
+        downloadedRoms = data.map(game => game.filename);
+        localStorage.setItem("downloaded-roms", JSON.stringify(downloadedRoms));
         
         // Update badge
         const count = data.length;
