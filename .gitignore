@@ -18,3 +18,7 @@ OpenEmu/
 
 # Scratch/temporary work directory
 scratch/
+
+# Node dependencies
+node_modules/
+
