@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Console - Dashboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css?v=2">
+  
+  <!-- Theme Sync -->
+  <script>
+    {
+      const colorScheme = localStorage.getItem("color-scheme") || "dark";
+      document.documentElement.style.setProperty("color-scheme", colorScheme);
+    }
+  </script>
+</head>
+<body class="dark-theme">
+  <!-- Aesthetic overlay grid and glows -->
+  <div class="grid-overlay"></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+  
+  <!-- Drag Overlay -->
+  <div id="drag-overlay" class="drag-overlay" style="display: none;">
+    <div class="drag-overlay-content">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      <h2>Drop ROM to Import</h2>
+      <p id="drag-overlay-sub">Import into active console folder</p>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <span class="logo-accent">AURA</span>
+        <span class="logo-text">CONSOLE</span>
+        <span class="logo-sub">ROM Dashboard</span>
+      </div>
+      
+      <!-- Top Navigation Tabs -->
+      <nav class="db-nav">
+        <button class="db-nav-tab active" data-slide="0">Home</button>
+        <button class="db-nav-tab" data-slide="1">Store</button>
+        <button class="db-nav-tab" id="tab-library" data-slide="2">
+          Library
+          <span id="library-count-badge" class="lib-badge" style="display:none;background:var(--color-accent-bright);color:#000;font-size:10px;padding:1px 5px;border-radius:10px;margin-left:4px;font-weight:700;">0</span>
+        </button>
+        <button class="db-nav-tab" id="tab-downloads" data-slide="3">Downloads</button>
+        <button class="db-nav-tab" id="tab-compat" data-slide="4">
+          🔬 Compat Lab
+          <span id="compat-count-badge" class="lib-badge" style="display:none;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:700;">0</span>
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <!-- Launch Button -->
+        <button id="btn-launch-emu" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+          <span id="btn-launch-label">Launch OpenEmu</span>
+        </button>
+        <!-- Theme Toggle -->
+        <button id="theme-toggle" class="btn-icon" aria-label="Toggle Theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main sliding container -->
+    <main class="app-main">
+      <div class="slides-viewport">
+        <div class="slides-wrapper" id="slides-wrapper">
+          
+          <!-- SLIDE 1: HOME -->
+          <div class="slide-panel slide-home">
+            <div class="home-grid">
+              
+              <!-- Left: Hero Tile -->
+              <div class="home-left">
+                <div class="hero-tile" id="recent-game-tile">
+                  <div class="hero-glow-back"></div>
+                  <div>
+                    <div class="hero-tag" id="recent-game-tag">Welcome Back</div>
+                    <div class="hero-title" id="recent-game-title">Select a game to start playing</div>
+                    <div class="hero-meta" id="recent-game-meta">Launch your favourite emulator to begin your retro journey.</div>
+                  </div>
+                  <div class="hero-footer">
+                    <button class="btn btn-secondary" id="btn-library" style="background:var(--color-accent);border-color:var(--color-accent-bright);color:#fff;">
+                      Go to Library
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Right: Launchers + Stats -->
+              <div class="home-right">
+                <div class="launcher-section">
+                  <h3 class="launcher-title">Quick Launch Emulators</h3>
+                  <div class="launcher-grid">
+                    <div class="launcher-card" data-sys="nes">
+                      <div class="launcher-icon">OE</div>
+                      <div>
+                        <div class="launcher-name">OpenEmu</div>
+                        <div class="launcher-desc">Play NES, SNES, GBA, N64, Genesis, PSX, and other retro systems.</div>
+                      </div>
+                    </div>
+                    <div class="launcher-card" data-sys="nds">
+                      <div class="launcher-icon">DS</div>
+                      <div>
+                        <div class="launcher-name">melonDS</div>
+                        <div class="launcher-desc">Play Nintendo DS games with full dual-screen emulation support.</div>
+                      </div>
+                    </div>
+                    <div class="launcher-card" data-sys="psp">
+                      <div class="launcher-icon">PP</div>
+                      <div>
+                        <div class="launcher-name">PPSSPP</div>
+                        <div class="launcher-desc">High-performance PSP emulator to play PlayStation Portable games.</div>
+                      </div>
+                    </div>
+                    <div class="launcher-card" data-sys="xbox360">
+                      <div class="launcher-icon">XN</div>
+                      <div>
+                        <div class="launcher-name">Xenia</div>
+                        <div class="launcher-desc">Xbox 360 emulation support for both Xenia and XeniOS builds.</div>
+                        <div class="install-xenia-container" id="xenia-install-container" style="margin-top:8px;"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Stats Widget -->
+                <div class="stats-card">
+                  <div class="stats-row">
+                    <span class="stats-label">Library Size</span>
+                    <span class="stats-val" id="stats-lib-count">0 Games</span>
+                  </div>
+                  <div class="stats-row">
+                    <span class="stats-label">Total Storage Used</span>
+                    <span class="stats-val accent" id="stats-lib-size">0.0 MB</span>
+                  </div>
+                  <div class="stats-row">
+                    <span class="stats-label">Server Status</span>
+                    <span class="stats-val" style="color:var(--color-success);">Online (Port 8080)</span>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+          
+          <!-- SLIDE 2: STORE (BROWSE) -->
+          <div class="slide-panel slide-store">
+            <!-- Console horizontal chooser -->
+            <div class="console-row-container">
+              <div class="console-scroll scroller">
+                <button class="console-tab active" data-system="nes">
+                  <span class="console-icon">NES</span>
+                  <span class="console-name">Nintendo NES</span>
+                </button>
+                <button class="console-tab" data-system="snes">
+                  <span class="console-icon">SNES</span>
+                  <span class="console-name">Super Nintendo</span>
+                </button>
+                <button class="console-tab" data-system="gba">
+                  <span class="console-icon">GBA</span>
+                  <span class="console-name">Game Boy Advance</span>
+                </button>
+                <button class="console-tab" data-system="gbc">
+                  <span class="console-icon">GBC</span>
+                  <span class="console-name">Game Boy Color</span>
+                </button>
+                <button class="console-tab" data-system="gb">
+                  <span class="console-icon">GB</span>
+                  <span class="console-name">Original Game Boy</span>
+                </button>
+                <button class="console-tab" data-system="n64">
+                  <span class="console-icon">N64</span>
+                  <span class="console-name">Nintendo 64</span>
+                </button>
+                <button class="console-tab" data-system="genesis">
+                  <span class="console-icon">GEN</span>
+                  <span class="console-name">Sega Genesis</span>
+                </button>
+                <button class="console-tab" data-system="gamegear">
+                  <span class="console-icon">GG</span>
+                  <span class="console-name">Sega Game Gear</span>
+                </button>
+                <button class="console-tab" data-system="sms">
+                  <span class="console-icon">SMS</span>
+                  <span class="console-name">Sega Master System</span>
+                </button>
+                <button class="console-tab" data-system="pcengine">
+                  <span class="console-icon">PCE</span>
+                  <span class="console-name">PC Engine / TG16</span>
+                </button>
+                <button class="console-tab" data-system="sega32x">
+                  <span class="console-icon">32X</span>
+                  <span class="console-name">Sega 32X</span>
+                </button>
+                <button class="console-tab" data-system="atari2600">
+                  <span class="console-icon">2600</span>
+                  <span class="console-name">Atari 2600</span>
+                </button>
+                <button class="console-tab" data-system="nds">
+                  <span class="console-icon">NDS</span>
+                  <span class="console-name">Nintendo DS</span>
+                </button>
+                <button class="console-tab" data-system="psx">
+                  <span class="console-icon">PSX</span>
+                  <span class="console-name">Sony PlayStation</span>
+                </button>
+                <button class="console-tab" data-system="saturn">
+                  <span class="console-icon">SAT</span>
+                  <span class="console-name">Sega Saturn</span>
+                </button>
+                <button class="console-tab" data-system="psp">
+                  <span class="console-icon">PSP</span>
+                  <span class="console-name">Sony PSP</span>
+                </button>
+                <button class="console-tab" data-system="segacd">
+                  <span class="console-icon">SCD</span>
+                  <span class="console-name">Sega CD</span>
+                </button>
+                <button class="console-tab" data-system="atari7800">
+                  <span class="console-icon">7800</span>
+                  <span class="console-name">Atari 7800</span>
+                </button>
+                <button class="console-tab" data-system="lynx">
+                  <span class="console-icon">LYNX</span>
+                  <span class="console-name">Atari Lynx</span>
+                </button>
+                <button class="console-tab" data-system="vb">
+                  <span class="console-icon">VB</span>
+                  <span class="console-name">Virtual Boy</span>
+                </button>
+                <button class="console-tab" data-system="wonderswan">
+                  <span class="console-icon">WS</span>
+                  <span class="console-name">WonderSwan</span>
+                </button>
+                <button class="console-tab" data-system="wonderswan-color">
+                  <span class="console-icon">WSC</span>
+                  <span class="console-name">WonderSwan Color</span>
+                </button>
+                <button class="console-tab" data-system="colecovision">
+                  <span class="console-icon">COL</span>
+                  <span class="console-name">ColecoVision</span>
+                </button>
+                <button class="console-tab" data-system="intellivision">
+                  <span class="console-icon">INT</span>
+                  <span class="console-name">Intellivision</span>
+                </button>
+                <button class="console-tab" data-system="vectrex">
+                  <span class="console-icon">VEC</span>
+                  <span class="console-name">Vectrex</span>
+                </button>
+                <button class="console-tab" data-system="odyssey2">
+                  <span class="console-icon">ODY2</span>
+                  <span class="console-name">Odyssey²</span>
+                </button>
+                <button class="console-tab" data-system="sg1000">
+                  <span class="console-icon">SG</span>
+                  <span class="console-name">Sega SG-1000</span>
+                </button>
+                <button class="console-tab" data-system="ngp">
+                  <span class="console-icon">NGP</span>
+                  <span class="console-name">Neo Geo Pocket</span>
+                </button>
+                <button class="console-tab" data-system="ngpc">
+                  <span class="console-icon">NGPC</span>
+                  <span class="console-name">Neo Geo Pocket Color</span>
+                </button>
+                <button class="console-tab" data-system="xbox360">
+                  <span class="console-icon">360</span>
+                  <span class="console-name">Xbox 360</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Search -->
+            <div class="search-bar-container">
+              <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="search-input" placeholder="Search for games (e.g. Super Mario, Sonic, Zelda)..." autocomplete="off">
+              <button id="clear-search" class="clear-btn" aria-label="Clear Search" style="display: none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <!-- Results -->
+            <div class="results-container scroller">
+              <div id="status-message" class="status-box">
+                <div class="spinner" style="display: none;"></div>
+                <p id="status-text">Select a console and search to find retro games.</p>
+              </div>
+              <ul id="games-list" class="games-grid"></ul>
+            </div>
+          </div>
+          
+          <!-- SLIDE 3: MY LIBRARY -->
+          <div class="slide-panel slide-library" id="panel-library">
+            <div class="library-search-wrap">
+              <input type="text" id="library-search" placeholder="Filter downloaded games..." autocomplete="off">
+              <button id="btn-open-downloads" class="btn btn-secondary" style="white-space: nowrap;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Open Folder
+              </button>
+              <label for="input-import-rom" class="btn btn-primary" style="white-space: nowrap; cursor: pointer; margin: 0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Import ROM
+              </label>
+              <input type="file" id="input-import-rom" multiple style="display: none;">
+            </div>
+            <div class="library-grid-container scroller">
+              <!-- Re-used original ID so JS appends automatically, CSS styles it as a grid -->
+              <div id="library-container" class="downloads-list">
+                <div class="no-downloads">
+                  <p>Loading library...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- SLIDE 4: DOWNLOADS -->
+          <div class="slide-panel slide-downloads" id="panel-downloads">
+            <div class="active-downloads-wrap scroller">
+              <!-- Re-used original ID -->
+              <div id="downloads-container">
+                <div class="no-downloads">
+                  <p>No active downloads.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- SLIDE 5: COMPAT LAB -->
+          <div class="slide-panel slide-compat" id="panel-compat">
+
+            <!-- Header bar -->
+            <div class="compat-header">
+              <div class="compat-header-left">
+                <h2 class="compat-title">🔬 Compatibility Lab</h2>
+                <p class="compat-subtitle">Per-game emulator flags &amp; patches · Future: share with the community</p>
+              </div>
+              <div class="compat-header-actions">
+                <button class="btn btn-secondary" id="btn-compat-new">+ New Patch</button>
+                <button class="btn btn-secondary" id="btn-compat-export">⬇ Export DB</button>
+                <label class="btn btn-secondary" id="btn-compat-import-label" style="cursor:pointer;">
+                  ⬆ Import DB
+                  <input type="file" id="compat-import-file" accept=".json" style="display:none;">
+                </label>
+              </div>
+            </div>
+
+            <div class="compat-body">
+
+              <!-- Left: game list -->
+              <div class="compat-list-col">
+                <input type="text" id="compat-search" placeholder="Search patches..." class="compat-search-input" autocomplete="off">
+                <div id="compat-game-list" class="compat-game-list scroller">
+                  <div class="compat-empty-state" id="compat-empty">
+                    <div style="font-size:2.5rem;margin-bottom:8px;">🎮</div>
+                    <div>No patches yet.</div>
+                    <div style="opacity:.5;font-size:.8rem;">Click "+ New Patch" to add your first fix.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: editor panel -->
+              <div class="compat-editor-col" id="compat-editor-col">
+                <div class="compat-editor-empty" id="compat-editor-empty">
+                  <div style="font-size:3rem;">⚙️</div>
+                  <div style="font-size:1rem;opacity:.6;margin-top:8px;">Select a game on the left to edit its patch.</div>
+                </div>
+
+                <div class="compat-editor" id="compat-editor" style="display:none;">
+                  <!-- Game title + meta -->
+                  <div class="compat-editor-top">
+                    <input class="compat-field-title" id="compat-edit-title" placeholder="Game title" type="text">
+                    <div class="compat-meta-row">
+                      <select id="compat-edit-system" class="compat-select">
+                        <option value="xbox360">Xbox 360</option>
+                        <option value="psp">PSP</option>
+                        <option value="nds">Nintendo DS</option>
+                        <option value="psx">PlayStation</option>
+                        <option value="n64">Nintendo 64</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <select id="compat-edit-status" class="compat-select">
+                        <option value="perfect">🟢 Perfect</option>
+                        <option value="playable" selected>🟡 Playable</option>
+                        <option value="broken">🔴 Broken</option>
+                        <option value="untested">⚪ Untested</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Flags table -->
+                  <div class="compat-section-label">Emulator Flags</div>
+                  <div id="compat-flags-list" class="compat-flags-list"></div>
+                  <button class="compat-add-flag-btn" id="btn-add-flag">
+                    <span>+ Add Flag</span>
+                  </button>
+
+                  <!-- Known flags picker -->
+                  <div class="compat-known-flags" id="compat-known-flags-wrap">
+                    <div class="compat-section-label">Known XeniOS Flags <span style="opacity:.4;font-size:.75rem;">(click to add)</span></div>
+                    <div id="compat-known-flags-list" class="compat-known-list"></div>
+                  </div>
+
+                  <!-- Notes -->
+                  <div class="compat-section-label">Notes</div>
+                  <textarea id="compat-edit-notes" class="compat-textarea" placeholder="Describe what this patch fixes..."></textarea>
+
+                  <!-- Actions -->
+                  <div class="compat-editor-actions">
+                    <button class="btn btn-primary" id="btn-compat-save">💾 Save Patch</button>
+                    <button class="btn btn-secondary" id="btn-compat-copy">📋 Copy JSON</button>
+                    <button class="btn btn-danger" id="btn-compat-delete">🗑 Delete</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="main.js?v=2"></script>
+</body>
+</html>

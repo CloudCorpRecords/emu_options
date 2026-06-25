@@ -1,0 +1,20 @@
+# Compiled application bundles
+*.app/
+*.app.bak/
+
+# Xcode / Build directories
+Build/
+
+# Local downloads / ROMs
+Downloads/
+
+# Cached files and Python caches
+__pycache__/
+cache/
+.DS_Store
+
+# Separate checkout of OpenEmu
+OpenEmu/
+
+# Scratch/temporary work directory
+scratch/

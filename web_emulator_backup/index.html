@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Aura Arcade - Premium Web-based Retro Console & Chip-8 Emulator featuring interactive debugger, screen effects, and local ROM player.">
+  <title>Aura Arcade // Retro Console Hub</title>
+  <!-- Google Fonts for retro & modern look -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Orbitron:wght@500;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-synthwave">
+  <!-- Scanline/CRT Effects Overlays -->
+  <div class="crt-overlay pointer-events-none"></div>
+  <div class="crt-vignette pointer-events-none"></div>
+  <div class="crt-glare pointer-events-none"></div>
+
+  <!-- Audio elements generated dynamically via Web Audio API -->
+  <div class="app-container">
+    <!-- Main Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <span class="pulse-dot"></span>
+        <h1 class="logo-text">AURA<span>ARCADE</span></h1>
+      </div>
+      <div class="header-controls">
+        <div class="control-group">
+          <label for="theme-select">THEME</label>
+          <select id="theme-select" class="retro-select">
+            <option value="theme-synthwave">SYNTHWAVE NEON</option>
+            <option value="theme-cyberpunk">CYBERPUNK GREEN</option>
+            <option value="theme-glacier">GLACIER MINT</option>
+            <option value="theme-gameboy">GAME BOY DMG</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label class="switch-label">
+            <span>CRT SCANLINES</span>
+            <input type="checkbox" id="crt-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-group">
+          <label class="switch-label">
+            <span>SOUNDS</span>
+            <input type="checkbox" id="sound-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="app-body">
+      <!-- Sidebar Navigation -->
+      <aside class="app-sidebar">
+        <nav class="nav-menu">
+          <button class="nav-btn active" data-tab="tab-chip8">
+            <span class="nav-icon">👾</span>
+            <span class="nav-text">CHIP-8 ARCADE</span>
+          </button>
+          <button class="nav-btn" data-tab="tab-console">
+            <span class="nav-icon">🎮</span>
+            <span class="nav-text">RETRO CONSOLE</span>
+          </button>
+          <button class="nav-btn" data-tab="tab-controls">
+            <span class="nav-icon">⌨️</span>
+            <span class="nav-text">KEY BINDINGS</span>
+          </button>
+          <button class="nav-btn" data-tab="tab-system">
+            <span class="nav-icon">💾</span>
+            <span class="nav-text">SYSTEM INFO</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sys-stat">
+            <span class="stat-label">CPU STATE:</span>
+            <span id="cpu-status-indicator" class="stat-value active">ONLINE</span>
+          </div>
+          <div class="sys-stat">
+            <span class="stat-label">FRAME RATE:</span>
+            <span id="fps-display" class="stat-value">60 FPS</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="app-content">
+        <!-- 1. CHIP-8 ARCADE TAB -->
+        <section id="tab-chip8" class="tab-pane active">
+          <div class="arcade-grid">
+            
+            <!-- Left Side: Canvas Screen & Controls -->
+            <div class="arcade-screen-area">
+              <div class="screen-chassis">
+                <div class="screen-bezel">
+                  <div class="screen-canvas-wrapper" id="crt-screen-wrapper">
+                    <canvas id="chip8-canvas" width="640" height="320"></canvas>
+                    <div id="screen-power-off" class="screen-state-overlay hidden">
+                      <div class="noise"></div>
+                      <div class="static-content">NO SIGNAL</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="arcade-quick-controls">
+                <button id="btn-power" class="btn btn-danger">
+                  <span class="btn-icon">🔌</span> POWER
+                </button>
+                <button id="btn-pause" class="btn btn-warning">
+                  <span class="btn-icon">⏸️</span> PAUSE
+                </button>
+                <button id="btn-step" class="btn btn-secondary" disabled>
+                  <span class="btn-icon">➡️</span> STEP
+                </button>
+                <button id="btn-reset" class="btn btn-primary">
+                  <span class="btn-icon">🔄</span> RESET
+                </button>
+                <div class="slider-control">
+                  <label for="speed-slider">SPEED: <span id="speed-value">12</span> IPF</label>
+                  <input type="range" id="speed-slider" min="1" max="60" value="12" step="1">
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: CPU Disassembler & Register Debugger -->
+            <div class="arcade-debug-area">
+              <!-- Game Library Panel -->
+              <div class="card library-card">
+                <div class="card-header">
+                  <h3>ROM LIBRARY</h3>
+                </div>
+                <div class="card-body">
+                  <div class="game-list" id="chip8-game-list">
+                    <!-- Loaded dynamically via js -->
+                  </div>
+                  <div class="rom-upload-mini">
+                    <label for="chip8-file-input" class="file-label-mini">
+                      <span>📂 Upload Custom .ch8 ROM</span>
+                      <input type="file" id="chip8-file-input" accept=".ch8,.rom" style="display:none;">
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Debugger Card -->
+              <div class="card debugger-card">
+                <div class="card-header">
+                  <h3>INTERACTIVE DEBUGGER</h3>
+                  <span class="indicator-glow cyan"></span>
+                </div>
+                <div class="card-body debug-panels">
+                  <!-- Registers Grid -->
+                  <div class="debug-registers">
+                    <h4>V-REGISTERS</h4>
+                    <div class="registers-grid" id="regs-grid">
+                      <!-- Filled by JS: V0 to VF -->
+                    </div>
+                  </div>
+
+                  <!-- CPU Pointers -->
+                  <div class="debug-pointers">
+                    <div class="pointer-item">
+                      <span class="ptr-label">PC</span>
+                      <span id="ptr-pc" class="ptr-val">0x200</span>
+                    </div>
+                    <div class="pointer-item">
+                      <span class="ptr-label">I</span>
+                      <span id="ptr-i" class="ptr-val">0x000</span>
+                    </div>
+                    <div class="pointer-item">
+                      <span class="ptr-label">SP</span>
+                      <span id="ptr-sp" class="ptr-val">0x0</span>
+                    </div>
+                    <div class="pointer-item">
+                      <span class="ptr-label">DT</span>
+                      <span id="ptr-dt" class="ptr-val">00</span>
+                    </div>
+                    <div class="pointer-item">
+                      <span class="ptr-label">ST</span>
+                      <span id="ptr-st" class="ptr-val">00</span>
+                    </div>
+                  </div>
+
+                  <!-- Code Disassembly -->
+                  <div class="debug-disasm">
+                    <h4>DISASSEMBLER</h4>
+                    <div class="disasm-list" id="disasm-list">
+                      <!-- Code disassembly goes here -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </section>
+
+        <!-- 2. RETRO CONSOLE TAB -->
+        <section id="tab-console" class="tab-pane">
+          <div class="console-panel-container">
+            <!-- Drag & Drop Overlay / Setup Page -->
+            <div id="console-welcome" class="console-welcome">
+              <div class="welcome-graphics">
+                <span class="graphic-dpad"></span>
+                <span class="graphic-buttons">
+                  <span class="btn-a">A</span>
+                  <span class="btn-b">B</span>
+                </span>
+              </div>
+              <h2>Multi-System Console Player</h2>
+              <p>Play Classic ROMs directly in your browser. Supports Game Boy, Game Boy Color, Game Boy Advance, NES, and Sega Genesis.</p>
+              
+              <div class="drop-zone" id="console-drop-zone">
+                <div class="drop-zone-content">
+                  <div class="drop-icon">💾</div>
+                  <h3>Drag & Drop ROM File Here</h3>
+                  <p>Or click to browse files from your computer</p>
+                  <span class="file-spec">Supported extensions: .nes, .gb, .gbc, .gba, .bin, .smd</span>
+                </div>
+                <input type="file" id="console-file-input" accept=".nes,.gb,.gbc,.gba,.bin,.smd" class="hidden-file-input">
+              </div>
+
+              <div class="privacy-note">
+                <strong>🔒 Private & Secure:</strong> Games are processed entirely inside your browser memory using Web APIs. No ROM files are uploaded to any server.
+              </div>
+            </div>
+
+            <!-- Emulator Frame Container -->
+            <div id="emulator-player-container" class="emulator-player-container hidden">
+              <div class="player-header">
+                <span id="player-title" class="player-title">NOW PLAYING: Super Mario Land</span>
+                <button id="btn-close-player" class="btn btn-secondary btn-sm">❌ EXIT PLAYER</button>
+              </div>
+              <div class="player-screen-wrapper">
+                <div id="emulator-canvas-host"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. KEY BINDINGS TAB -->
+        <section id="tab-controls" class="tab-pane">
+          <div class="card controls-card">
+            <div class="card-header">
+              <h2>CHIP-8 KEYMAP SETTINGS</h2>
+            </div>
+            <div class="card-body">
+              <p class="description">The CHIP-8 console uses a hexadecimal 16-key keypad (0-F). Below you can view and customize how they map to your modern keyboard. Click any key to rebind it.</p>
+              
+              <div class="keys-config-layout">
+                <!-- Visual Hex Keypad -->
+                <div class="hex-keypad-panel">
+                  <h4>Chip-8 Virtual Pad</h4>
+                  <div class="hex-keypad-grid" id="hex-keypad-grid">
+                    <!-- Key buttons generated via JS -->
+                  </div>
+                </div>
+
+                <!-- Mapping Table -->
+                <div class="keymap-table-panel">
+                  <h4>Current Assignments</h4>
+                  <div class="keymap-list" id="keymap-list">
+                    <!-- Key list bindings generated via JS -->
+                  </div>
+                  <button id="btn-reset-keys" class="btn btn-secondary" style="margin-top: 1.5rem; width: 100%;">
+                    RESET DEFAULT KEYMAPS
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. SYSTEM INFO TAB -->
+        <section id="tab-system" class="tab-pane">
+          <div class="card system-card">
+            <div class="card-header font-orbitron">
+              <h2>SYSTEM BIOS // V.08.06.26</h2>
+            </div>
+            <div class="card-body bios-terminal">
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> SYSTEM STATUS: ONLINE</div>
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> DETECTING MEMORY BANKS: 4096 BYTES OK</div>
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> INITIALIZING GRAPHICS ENGINE: 64x32 PIXEL MONOCHROME VRAM OK</div>
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> BOOT SECTOR: 0x200 STABLE</div>
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> INPUT HARDWARE: 16-KEY HEX KEYPAD DETECTED</div>
+              <div class="terminal-line">&nbsp;</div>
+              <div class="terminal-line text-highlight">CHIP-8 SPECIFICATION SUMMARY:</div>
+              <p class="terminal-text">
+                CHIP-8 is an interpreted programming language, first used on COSMAC VIP and Telmac 1800 8-bit microcomputers in the mid-1970s.
+                It features 16 8-bit registers (V0-VF), an index register (I), a delay timer (DT) for timing operations, a sound timer (ST) for generating a mono beep, and a stack for subroutine nesting.
+              </p>
+              
+              <div class="terminal-line text-highlight">OPERATIONAL MAPPINGS:</div>
+              <div class="terminal-line">Register VF acts as a carry flag in addition, a borrow flag in subtraction, and a pixel collision detector during screen draw instructions.</div>
+              <div class="terminal-line">Timer frequencies are set to decrements of exactly 60Hz.</div>
+              <div class="terminal-line">&nbsp;</div>
+              
+              <div class="terminal-line text-highlight">CONSOLES EMULATOR MODULE:</div>
+              <p class="terminal-text">
+                The Retro Console tab embeds the high-performance **EmulatorJS** core manager. It dynamically downloads the required WebAssembly core (like Libretro cores for NES, Game Boy, Genesis) directly from CDN to parse and execute your local ROM files. No telemetry is collected, and gameplay is sandboxed.
+              </p>
+              <div class="terminal-line"><span class="term-prompt">&gt;</span> ALL SUBSYSTEMS NOMINAL. READY FOR OPERATION.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Footer Status Bar -->
+    <footer class="app-footer">
+      <div class="footer-item">
+        <span class="indicator green"></span>
+        <span id="footer-status-text">SYSTEM READY</span>
+      </div>
+      <div class="footer-item font-fira" id="footer-rom-name">
+        ROM: NONE LOADED
+      </div>
+      <div class="footer-item">
+        ANTIGRAVITY RETRO HUB v1.0.0
+      </div>
+    </footer>
+  </div>
+
+  <!-- Loading Overlay for EmulatorJS -->
+  <div id="emu-loading-overlay" class="loader-overlay hidden">
+    <div class="spinner"></div>
+    <div class="loader-text">Downloading Emulator Core...</div>
+  </div>
+
+  <!-- Javascript Modules -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

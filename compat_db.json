@@ -1,0 +1,111 @@
+{
+  "version": "1.0.0",
+  "description": "Aura Console Compatibility Patch Database — per-game emulator flags and workarounds",
+  "games": {
+    "007 Blood Stone": {
+      "title": "007: Blood Stone",
+      "system": "xbox360",
+      "status": "playable",
+      "flags": {
+        "--metal_allow_gamma_unorm16": true,
+        "--readback_resolve": "full"
+      },
+      "env_vars": {},
+      "notes": "Without the gamma flag the entire scene renders blown-out white. Enable --metal_allow_gamma_unorm16 to restore correct colors.",
+      "reported_by": "local",
+      "last_tested": "2026-06-09"
+    },
+    "Halo 3": {
+      "title": "Halo 3",
+      "system": "xbox360",
+      "status": "perfect",
+      "flags": {
+        "--fullscreen": true
+      },
+      "notes": "Runs great!",
+      "last_tested": "2026-06-09",
+      "reported_by": "local"
+    },
+    "007: Blood Stone": {
+      "title": "007: Blood Stone",
+      "system": "xbox360",
+      "status": "playable",
+      "flags": {
+        "--metal_allow_gamma_unorm16": true,
+        "--readback_resolve": "full"
+      },
+      "notes": "Without the gamma flag the entire scene renders blown-out white. Enable --metal_allow_gamma_unorm16 to restore correct colors.",
+      "last_tested": "2026-06-12",
+      "reported_by": "local"
+    }
+  },
+  "known_flags": {
+    "xbox360": [
+      {
+        "flag": "--metal_allow_gamma_unorm16",
+        "type": "boolean",
+        "default": false,
+        "description": "Fix washed-out / blown-out white gamma rendering on Metal backend (macOS). May cause minor color artifacts on some titles."
+      },
+      {
+        "flag": "--vsync",
+        "type": "boolean",
+        "default": true,
+        "description": "Vertical sync. Disable for uncapped frame rates."
+      },
+      {
+        "flag": "--fullscreen",
+        "type": "boolean",
+        "default": false,
+        "description": "Launch game in fullscreen mode."
+      },
+      {
+        "flag": "--user_language",
+        "type": "integer",
+        "default": 1,
+        "description": "Force game language. 1=EN, 2=JA, 3=DE, 4=FR, 5=ES, 6=IT, 7=KO, 8=ZH."
+      },
+      {
+        "flag": "--license_mask",
+        "type": "integer",
+        "default": 0,
+        "description": "Unlock DLC / license mask. Set to 1 to enable all purchased content."
+      },
+      {
+        "flag": "--mount_scratch",
+        "type": "boolean",
+        "default": false,
+        "description": "Mount the scratch partition. Required by some titles that write temporary data."
+      },
+      {
+        "flag": "--gpu",
+        "type": "string",
+        "default": "any",
+        "options": [
+          "any",
+          "vulkan",
+          "d3d12"
+        ],
+        "description": "Force a specific GPU backend. On macOS 'any' uses Metal. 'vulkan' / 'd3d12' are for Windows builds."
+      },
+      {
+        "flag": "--render_target_path_clearance",
+        "type": "boolean",
+        "default": false,
+        "description": "Clear render targets aggressively. Fixes black-box artifacts in some titles."
+      },
+      {
+        "flag": "--query_occlusion_fake_sample_count",
+        "type": "integer",
+        "default": 0,
+        "description": "Fake occlusion query sample count. Set to 1000 to fix games that hang waiting on GPU queries."
+      },
+      {
+        "flag": "--clock_no_scaling",
+        "type": "boolean",
+        "default": false,
+        "description": "Disable CPU clock scaling. Use if a game runs too fast or too slow."
+      }
+    ]
+  }
+}
