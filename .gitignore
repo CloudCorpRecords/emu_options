@@ -30,3 +30,4 @@ build/
 dist/
 *.spec
 bin/
+node-bin/

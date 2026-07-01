@@ -58,6 +58,9 @@
           🔬 Compat Lab
           <span id="compat-count-badge" class="lib-badge" style="display:none;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:700;">0</span>
         </button>
+        <button class="db-nav-tab" id="tab-ai-agent" data-slide="5">
+          🤖 Aura AI
+        </button>
       </nav>
 
       <div class="header-actions">
@@ -429,6 +432,75 @@
                 </div>
               </div>
 
+            </div>
+          </div>
+
+          <!-- SLIDE 6: AURA AI -->
+          <div class="slide-panel slide-ai-agent" id="panel-ai-agent">
+            <div class="ai-agent-layout">
+              <!-- Left Pane: Settings & Instructions -->
+              <div class="ai-settings-col">
+                <h3 class="ai-section-title">🤖 Aura Agent Setup</h3>
+                
+                <div class="ai-form-group">
+                  <label for="ai-provider">LLM Provider</label>
+                  <select id="ai-provider" class="ai-select">
+                    <option value="ollama" selected>Ollama (Local)</option>
+                    <option value="openai">OpenAI (Cloud)</option>
+                    <option value="gemini">Gemini (Cloud)</option>
+                    <option value="anthropic">Anthropic (Cloud)</option>
+                  </select>
+                </div>
+
+                <div class="ai-form-group" id="ai-group-key" style="display: none;">
+                  <label for="ai-key">API Key</label>
+                  <input type="password" id="ai-key" placeholder="sk-..." class="ai-input">
+                </div>
+
+                <div class="ai-form-group">
+                  <label for="ai-model">Model Name</label>
+                  <input type="text" id="ai-model" placeholder="qwen2.5:7b" class="ai-input" value="qwen2.5:7b">
+                  <span class="ai-help-text" id="ai-model-help">For local Ollama, ensure this model is downloaded (e.g., run `ollama run qwen2.5:7b` in terminal first).</span>
+                </div>
+
+                <div class="ai-form-group" id="ai-group-ollama-port">
+                  <label for="ai-ollama-port">Ollama Port</label>
+                  <input type="text" id="ai-ollama-port" placeholder="11434" class="ai-input" value="11434">
+                </div>
+
+                <div class="ai-info-card">
+                  <h4>💡 What can Aura Agent do?</h4>
+                  <ul>
+                    <li>Read & write any file in the workspace</li>
+                    <li>List directories to map the codebase</li>
+                    <li>Run shell commands (compilers, server tests)</li>
+                    <li>Auto-correct code bugs and install packages</li>
+                  </ul>
+                  <p class="warning-text">⚠️ <strong>Caution:</strong> The agent has system write/execute privileges. Ensure local models are trusted.</p>
+                </div>
+              </div>
+
+              <!-- Right Pane: Chat Console -->
+              <div class="ai-console-col">
+                <div class="ai-console-header">
+                  <span class="ai-status-pill idle" id="ai-status-indicator">Idle</span>
+                  <span class="ai-header-text" id="ai-header-title">Ready for instructions</span>
+                </div>
+                
+                <div class="ai-console-logs scroller" id="ai-console-logs-container">
+                  <div class="ai-log-entry system">
+                    System: Aura Agent initialized. Describe a problem or task below to begin self-healing.
+                  </div>
+                </div>
+
+                <div class="ai-input-bar">
+                  <textarea id="ai-prompt-input" placeholder="Type a task (e.g. 'check server logs and verify if all emulator routes work' or 'create a test ROM download script')..." rows="2"></textarea>
+                  <div class="ai-actions-row">
+                    <button class="btn btn-secondary" id="btn-ai-cancel" style="display: none;">Cancel Task</button>
+                    <button class="btn btn-primary" id="btn-ai-run">Run Agent</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -474,6 +474,255 @@ def download_worker(download_id, system, filename):
             except Exception:
                 pass
 
+# ---------------------------------------------------------------------------
+# Aura AI Agent implementation
+# ---------------------------------------------------------------------------
+
+agent_status = {
+    "status": "idle",
+    "logs": [],
+    "current_task": None
+}
+
+def parse_xml_tags(text):
+    import re
+    calls = []
+    pattern = re.compile(r'<(read_file|write_file|list_dir|run_command|finish_task)([^>]*?)(?:/>|>(.*?)</\1>)', re.DOTALL)
+    for match in pattern.finditer(text):
+        tag = match.group(1)
+        attrs_str = match.group(2)
+        content = match.group(3) or ""
+        
+        attrs = {}
+        attr_pattern = re.compile(r'(\w+)="([^"]*?)"')
+        for attr_match in attr_pattern.finditer(attrs_str):
+            attrs[attr_match.group(1)] = attr_match.group(2)
+            
+        calls.append((tag, attrs, content.strip()))
+    return calls
+
+def execute_agent_tool(tool, args, content):
+    import os, subprocess
+    cwd = os.path.abspath(os.path.dirname(__file__))
+    
+    def safe_resolve(path_arg):
+        if not path_arg:
+            raise ValueError("Path argument is empty")
+        resolved = os.path.abspath(os.path.join(cwd, path_arg))
+        if not resolved.startswith(cwd):
+            raise PermissionError(f"Access denied: {path_arg} is outside project directory")
+        return resolved
+
+    if tool == "read_file":
+        path = safe_resolve(args.get("path"))
+        if not os.path.exists(path):
+            return f"Error: File '{args.get('path')}' does not exist"
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+            
+    elif tool == "write_file":
+        path = safe_resolve(args.get("path"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote file to '{args.get('path')}'"
+        
+    elif tool == "list_dir":
+        path = safe_resolve(args.get("path", "."))
+        if not os.path.exists(path):
+            return f"Error: Directory '{args.get('path')}' does not exist"
+        items = os.listdir(path)
+        out = []
+        for item in sorted(items):
+            item_path = os.path.join(path, item)
+            is_dir = os.path.isdir(item_path)
+            out.append(f"{'[DIR] ' if is_dir else '      '}{item}")
+        return "\n".join(out)
+        
+    elif tool == "run_command":
+        cmd = args.get("cmd")
+        if not cmd:
+            return "Error: Command argument 'cmd' is missing"
+        res = subprocess.run(cmd, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+        out = []
+        if res.stdout:
+            out.append(f"stdout:\n{res.stdout}")
+        if res.stderr:
+            out.append(f"stderr:\n{res.stderr}")
+        return "\n".join(out) if out else "Command completed with no output"
+        
+    elif tool == "finish_task":
+        return f"Task completed successfully. Message: {args.get('message', '')}"
+        
+    else:
+        return f"Error: Unknown tool '{tool}'"
+
+def call_llm_api(provider, api_key, model, messages):
+    import urllib.request, json
+    
+    if provider == "ollama":
+        url = "http://localhost:11434/api/chat"
+        body = {
+            "model": model or "qwen2.5:7b",
+            "messages": messages,
+            "stream": False
+        }
+        req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=45) as res:
+            res_data = json.loads(res.read().decode())
+            return res_data["message"]["content"]
+            
+    elif provider == "openai":
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        body = {
+            "model": model or "gpt-4o",
+            "messages": messages
+        }
+        req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=45) as res:
+            res_data = json.loads(res.read().decode())
+            return res_data["choices"][0]["message"]["content"]
+            
+    elif provider == "anthropic":
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "content-type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        }
+        system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+        non_system_messages = [m for m in messages if m["role"] != "system"]
+        body = {
+            "model": model or "claude-3-5-sonnet-20241022",
+            "system": system_content,
+            "messages": non_system_messages,
+            "max_tokens": 4096
+        }
+        req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=45) as res:
+            res_data = json.loads(res.read().decode())
+            return res_data["content"][0]["text"]
+            
+    elif provider == "gemini":
+        model_name = model or "gemini-1.5-flash"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+        non_system_messages = [m for m in messages if m["role"] != "system"]
+        
+        gemini_contents = []
+        for m in non_system_messages:
+            role = "model" if m["role"] == "assistant" else "user"
+            gemini_contents.append({
+                "role": role,
+                "parts": [{"text": m["content"]}]
+            })
+            
+        body = {
+            "contents": gemini_contents
+        }
+        if system_content:
+            body["systemInstruction"] = {
+                "parts": [{"text": system_content}]
+            }
+            
+        req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=45) as res:
+            res_data = json.loads(res.read().decode())
+            return res_data["candidates"][0]["content"]["parts"][0]["text"]
+            
+    else:
+        raise ValueError(f"Unknown LLM provider: {provider}")
+
+def agent_worker(provider, api_key, model, user_instruction):
+    agent_status["status"] = "running"
+    agent_status["logs"] = []
+    agent_status["current_task"] = user_instruction
+    
+    system_prompt = """You are Aura Agent, an autonomous AI coding assistant designed to help debug, improve, and run the Aura Console codebase.
+You operate in a loop: analyze the task, call tools to get information or modify files, and report when finished.
+
+Your workspace directory is the root of the project: /Users/reneturcios/Documents/GitHub/emu_options
+
+To interact with the workspace, you MUST output XML tags representing your tool calls. You can only call one tool at a time, or multiple tools sequentially in a single response.
+After calling a tool, wait for the user (system) to provide the tool execution output in the next turn.
+
+Available Tools:
+1. Read a file:
+<read_file path="relative_path_from_project_root" />
+
+2. Write/Overwrite a file:
+<write_file path="relative_path_from_project_root">
+file content here...
+</write_file>
+
+3. List directory contents:
+<list_dir path="relative_path_from_project_root" />
+
+4. Run a terminal command (standard output and error will be returned):
+<run_command cmd="shell_command" />
+
+5. Finish task:
+<finish_task message="final message to user explaining what you did" />
+
+Always explain your reasoning before making tool calls. When you are done making changes or debugging, call <finish_task>."""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Please execute this task: {user_instruction}"}
+    ]
+    
+    max_iterations = 15
+    for i in range(max_iterations):
+        if agent_status["status"] != "running":
+            break
+            
+        agent_status["logs"].append(f"[System]: Querying LLM (Iteration {i+1})...")
+        
+        try:
+            response_text = call_llm_api(provider, api_key, model, messages)
+            agent_status["logs"].append(f"[Agent]: {response_text}")
+            messages.append({"role": "assistant", "content": response_text})
+        except Exception as e:
+            agent_status["status"] = "error"
+            agent_status["logs"].append(f"[Error]: LLM call failed: {str(e)}")
+            break
+            
+        tool_calls = parse_xml_tags(response_text)
+        if not tool_calls:
+            agent_status["logs"].append("[System]: No tool calls detected. Prompting agent to call tools or finish.")
+            sys_msg = "Please call a tool to proceed with the task, or call <finish_task> if you are done."
+            messages.append({"role": "user", "content": sys_msg})
+            continue
+            
+        finished = False
+        tool_results = []
+        for tool, args, content in tool_calls:
+            agent_status["logs"].append(f"[System]: Executing tool: {tool} with args {args}")
+            try:
+                result = execute_agent_tool(tool, args, content)
+                agent_status["logs"].append(f"[System Result]: {result[:500]}..." if len(result) > 500 else f"[System Result]: {result}")
+                tool_results.append(f"Tool {tool} result:\n{result}")
+                if tool == "finish_task":
+                    finished = True
+                    agent_status["status"] = "completed"
+                    break
+            except Exception as e:
+                agent_status["logs"].append(f"[System Error]: {str(e)}")
+                tool_results.append(f"Tool {tool} error:\n{str(e)}")
+                
+        if finished:
+            break
+            
+        messages.append({"role": "user", "content": "\n\n".join(tool_results)})
+        
+    if agent_status["status"] == "running":
+        agent_status["status"] = "timeout"
+        agent_status["logs"].append("[System Error]: Agent loop hit maximum iteration limit.")
+
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
@@ -790,7 +1039,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             
             def install_worker():
                 downloads_status["melonds-install"] = {"status": "downloading", "bytes_written": 0, "total_size": 0}
-                url = "https://github.com/melonDS-emu/melonDS/releases/download/0.9.5/melonDS-0.9.5-macOS-universal.zip"
+                url = "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-macOS-universal.zip"
                 zip_path = os.path.join(WORKSPACE_DIR, "melonds_temp.zip")
                 
                 try:
@@ -1000,26 +1249,6 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                     self.wfile.write(json.dumps({"success": False, "error": err_msg}).encode())
                     return
                 
-                # Locate executable within the app bundle to run directly in background
-                binary_path = found_xenia
-                if found_xenia.endswith(".app"):
-                    macos_dir = os.path.join(found_xenia, "Contents", "MacOS")
-                    if os.path.exists(macos_dir):
-                        executables = [
-                            f for f in os.listdir(macos_dir)
-                            if not f.startswith('.') and os.path.isfile(os.path.join(macos_dir, f)) and f != "xenia.log"
-                        ]
-                        if executables:
-                            pref = ["Xenia-edge", "Xenia", "xenia"]
-                            chosen = None
-                            for p_name in pref:
-                                if p_name in executables:
-                                    chosen = p_name
-                                    break
-                            if not chosen:
-                                chosen = executables[0]
-                            binary_path = os.path.join(macos_dir, chosen)
-                
                 try:
                     # --- Compatibility patch flag injection ---
                     game_name = os.path.splitext(os.path.basename(dest_path))[0]
@@ -1027,8 +1256,10 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                     flag_str = build_flag_string(compat_flags)
                     if flag_str:
                         print(f"Compat flags for '{game_name}': {flag_str}")
-                    cmd = f'"{binary_path}" {flag_str} "{dest_path}" &'.strip()
-                    print(f"Executing direct launch command: {cmd}")
+                        cmd = f'open -a "{found_xenia}" "{dest_path}" --args {flag_str}'
+                    else:
+                        cmd = f'open -a "{found_xenia}" "{dest_path}"'
+                    print(f"Executing launch command: {cmd}")
                     os.system(cmd)
                     self.wfile.write(json.dumps({"success": True, "compat_flags": compat_flags}).encode())
                 except Exception as e:
@@ -1102,6 +1333,14 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"found": True, "patch": entry}).encode())
             else:
                 self.wfile.write(json.dumps({"found": False}).encode())
+            return
+
+        elif path == "/api/agent-status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(agent_status).encode())
             return
 
         elif path == "/api/compat-export":
@@ -1242,6 +1481,50 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+            return
+
+        elif path == "/api/agent-run":
+            content_length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = json.loads(self.rfile.read(content_length))
+                provider = body.get("provider", "ollama")
+                api_key = body.get("api_key", "")
+                model = body.get("model", "")
+                user_instruction = body.get("instruction", "")
+                
+                if not user_instruction:
+                    raise ValueError("Missing 'instruction'")
+                    
+                # Kill existing agent task if running
+                if agent_status["status"] == "running":
+                    agent_status["status"] = "cancelled"
+                    agent_status["logs"].append("[System]: Previous task cancelled by user.")
+                    
+                # Run the new worker thread
+                import threading
+                t = threading.Thread(target=agent_worker, args=(provider, api_key, model, user_instruction))
+                t.daemon = True
+                t.start()
+                
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}).encode())
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+            return
+
+        elif path == "/api/agent-cancel":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            if agent_status["status"] == "running":
+                agent_status["status"] = "cancelled"
+                agent_status["logs"].append("[System]: Task cancelled by user request.")
+            self.wfile.write(json.dumps({"success": True}).encode())
             return
 
         self.send_response(404)

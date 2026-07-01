@@ -9,10 +9,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const navTabs = document.querySelectorAll(".db-nav-tab");
 
   function goToSlide(index) {
-    if (index < 0 || index > 4) return;
+    if (index < 0 || index > 5) return;
     currentSlideIndex = index;
-    // 5 slides, each 20% wide
-    slidesWrapper.style.transform = `translateX(-${index * 20}%)`;
+    // 6 slides, each 16.6666% wide
+    slidesWrapper.style.transform = `translateX(-${index * 16.6666}%)`;
     
     navTabs.forEach((tab, i) => {
       tab.classList.toggle("active", i === index);
@@ -25,6 +25,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // If switching to Compat Lab, refresh it
     if (index === 4) {
       renderCompatList();
+    }
+    // If switching to AI Agent, refresh status and start polling
+    if (index === 5) {
+      initAiAgentTab();
+    } else {
+      stopAiAgentPolling();
     }
   }
 
@@ -39,14 +45,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Tactile Keyboard navigation (Arrow keys slide pages when no input is focused)
   window.addEventListener("keydown", (e) => {
     const active = document.activeElement;
-    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.contentEditable === "true")) {
       return; // Skip if typing
     }
 
     if (e.key === "ArrowLeft" || e.key === "Left") {
       goToSlide(Math.max(0, currentSlideIndex - 1));
     } else if (e.key === "ArrowRight" || e.key === "Right") {
-      goToSlide(Math.min(3, currentSlideIndex + 1));
+      goToSlide(Math.min(5, currentSlideIndex + 1));
     }
   });
 
@@ -1472,6 +1478,193 @@ document.addEventListener("DOMContentLoaded", () => {
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  // ── Aura AI Agent Logic ───────────────────────────────────────────────────
+  let aiPollingInterval = null;
+  let lastLogCount = 0;
+
+  function initAiAgentTab() {
+    const providerSelect = document.getElementById("ai-provider");
+    const keyGroup = document.getElementById("ai-group-key");
+    const portGroup = document.getElementById("ai-group-ollama-port");
+    const modelInput = document.getElementById("ai-model");
+    const modelHelp = document.getElementById("ai-model-help");
+
+    function updateFields() {
+      const provider = providerSelect.value;
+      if (provider === "ollama") {
+        keyGroup.style.display = "none";
+        portGroup.style.display = "flex";
+        modelInput.value = "qwen2.5:7b";
+        modelHelp.textContent = "For local Ollama, ensure this model is downloaded (e.g. run `ollama run qwen2.5:7b` in terminal first).";
+      } else {
+        keyGroup.style.display = "flex";
+        portGroup.style.display = "none";
+        if (provider === "openai") {
+          modelInput.value = "gpt-4o";
+          modelHelp.textContent = "Recommended: gpt-4o, gpt-4-turbo, or gpt-3.5-turbo.";
+        } else if (provider === "gemini") {
+          modelInput.value = "gemini-1.5-flash";
+          modelHelp.textContent = "Recommended: gemini-1.5-flash or gemini-1.5-pro.";
+        } else if (provider === "anthropic") {
+          modelInput.value = "claude-3-5-sonnet-20241022";
+          modelHelp.textContent = "Recommended: claude-3-5-sonnet-20241022.";
+        }
+      }
+    }
+
+    if (providerSelect) {
+      providerSelect.removeEventListener("change", updateFields);
+      providerSelect.addEventListener("change", updateFields);
+      updateFields();
+    }
+
+    const runBtn = document.getElementById("btn-ai-run");
+    if (runBtn) {
+      runBtn.onclick = runAiAgentTask;
+    }
+
+    const cancelBtn = document.getElementById("btn-ai-cancel");
+    if (cancelBtn) {
+      cancelBtn.onclick = cancelAiAgentTask;
+    }
+
+    fetchAgentStatus();
+    startAiAgentPolling();
+  }
+
+  function startAiAgentPolling() {
+    stopAiAgentPolling();
+    aiPollingInterval = setInterval(fetchAgentStatus, 1500);
+  }
+
+  function stopAiAgentPolling() {
+    if (aiPollingInterval) {
+      clearInterval(aiPollingInterval);
+      aiPollingInterval = null;
+    }
+  }
+
+  async function fetchAgentStatus() {
+    try {
+      const res = await fetch("/api/agent-status");
+      const data = await res.json();
+      updateAgentUI(data);
+    } catch (e) {
+      console.error("Error fetching agent status:", e);
+    }
+  }
+
+  function updateAgentUI(data) {
+    const statusPill = document.getElementById("ai-status-indicator");
+    const headerTitle = document.getElementById("ai-header-title");
+    const runBtn = document.getElementById("btn-ai-run");
+    const cancelBtn = document.getElementById("btn-ai-cancel");
+    const logsContainer = document.getElementById("ai-console-logs-container");
+
+    if (!statusPill || !headerTitle || !runBtn || !cancelBtn || !logsContainer) return;
+
+    statusPill.className = `ai-status-pill ${data.status}`;
+    statusPill.textContent = data.status;
+
+    if (data.status === "running") {
+      headerTitle.textContent = `Running task: "${data.current_task}"`;
+      runBtn.disabled = true;
+      runBtn.textContent = "Working...";
+      cancelBtn.style.display = "inline-block";
+    } else {
+      headerTitle.textContent = data.current_task ? `Last task: "${data.current_task}"` : "Ready for instructions";
+      runBtn.disabled = false;
+      runBtn.textContent = "Run Agent";
+      cancelBtn.style.display = "none";
+    }
+
+    if (data.logs.length !== lastLogCount || logsContainer.children.length <= 1) {
+      lastLogCount = data.logs.length;
+      
+      const welcomeEntry = logsContainer.children[0];
+      logsContainer.innerHTML = "";
+      logsContainer.appendChild(welcomeEntry);
+
+      data.logs.forEach(log => {
+        const entry = document.createElement("div");
+        entry.className = "ai-log-entry";
+        if (log.startsWith("[System]")) {
+          entry.classList.add("system");
+        } else if (log.startsWith("[Agent]")) {
+          entry.classList.add("agent");
+        } else if (log.startsWith("[Error]") || log.startsWith("[System Error]")) {
+          entry.classList.add("error");
+        } else {
+          entry.classList.add("system");
+        }
+        entry.textContent = log;
+        logsContainer.appendChild(entry);
+      });
+
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+  }
+
+  async function runAiAgentTask() {
+    const promptInput = document.getElementById("ai-prompt-input");
+    const providerSelect = document.getElementById("ai-provider");
+    const keyInput = document.getElementById("ai-key");
+    const modelInput = document.getElementById("ai-model");
+
+    if (!promptInput || !promptInput.value.trim()) {
+      showToast("❌ Please enter a task instruction.");
+      return;
+    }
+
+    const provider = providerSelect.value;
+    const key = keyInput ? keyInput.value.trim() : "";
+    let model = modelInput ? modelInput.value.trim() : "";
+
+    if (provider !== "ollama" && !key) {
+      showToast("❌ API Key is required for cloud providers.");
+      return;
+    }
+
+    const payload = {
+      provider: provider,
+      api_key: key,
+      model: model,
+      instruction: promptInput.value.trim()
+    };
+
+    try {
+      const res = await fetch("/api/agent-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("🤖 Aura Agent started running!");
+        promptInput.value = "";
+        lastLogCount = 0;
+        fetchAgentStatus();
+      } else {
+        showToast("❌ Failed to start agent: " + (data.error || "unknown"));
+      }
+    } catch (e) {
+      showToast("❌ Communication error with backend server.");
+    }
+  }
+
+  async function cancelAiAgentTask() {
+    try {
+      const res = await fetch("/api/agent-cancel", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast("🤖 Agent task cancelled.");
+        fetchAgentStatus();
+      }
+    } catch (e) {
+      showToast("❌ Failed to send cancel request.");
+    }
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────
